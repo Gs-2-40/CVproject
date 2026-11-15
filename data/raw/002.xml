@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<annotations>
+  <version>1.1</version>
+  <meta>
+    <job>
+      <id>4729287</id>
+      <size>134</size>
+      <mode>interpolation</mode>
+      <overlap>0</overlap>
+      <bugtracker></bugtracker>
+      <created>2026-11-15 07:45:57.931024+00:00</created>
+      <updated>2026-11-15 07:56:27.667496+00:00</updated>
+      <subset>default</subset>
+      <start_frame>0</start_frame>
+      <stop_frame>133</stop_frame>
+      <frame_filter></frame_filter>
+      <segments>
+        <segment>
+          <id>4725931</id>
+          <start>0</start>
+          <stop>133</stop>
+          <url>https://app.cvat.ai/api/jobs/4729287/dataset/export/api/jobs/4729287</url>
+        </segment>
+      </segments>
+      <owner>
+        <username>albina6178@gmail.com</username>
+        <email>albina6178@gmail.com</email>
+      </owner>
+      <assignee></assignee>
+      <labels>
+        <label>
+          <name>fall</name>
+          <color>#f30028</color>
+          <type>any</type>
+          <attributes>
+          </attributes>
+        </label>
+        <label>
+          <name>no_fall</name>
+          <color>#12f912</color>
+          <type>any</type>
+          <attributes>
+          </attributes>
+        </label>
+      </labels>
+    </job>
+    <dumped>2026-11-15 07:57:05.417413+00:00</dumped>
+    <original_size>
+      <width>640</width>
+      <height>360</height>
+    </original_size>
+  </meta>
+</annotations>
