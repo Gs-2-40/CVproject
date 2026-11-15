@@ -5,19 +5,17 @@ import cv2
 from ultralytics import YOLO
 import numpy as np
 
-model = YOLO("yolo11n-pose_ncnn_model")
+model = YOLO("models/yolo11n-pose_ncnn_model")
 
 def pose_extractor(frame):
-    results = model.track(
-        frame,
-        persist=True,
-        tracker="bytetrack.yaml",
-        conf=0.4,
-        imgsz=320,
-        verbose=False
-    )
+    results = model.predict(frame, verbose=False)
 
-    result = results[0]
+    result = results[0].keypoints.data.cpu().numpy()
+
+    if len(result) != 1:
+        print(f"В кадре более одного человека {video.name} или отсутсвуют")
+        return
+
     return result
 
 def process_xml(xml):
@@ -40,14 +38,11 @@ def process_xml(xml):
             return
         annotations.append(labels)
     return annotations
-
 def normalize(keypoints):
-    first = keypoints[0].copy()
+    main = [keypoints[0][1]] * len(keypoints[0])
 
-    keypoints[0] = np.zeros_like(first)
-
-    for i in range(1, len(keypoints)):
-        keypoints[i] -= first
+    for i in range(len(keypoints)):
+        keypoints[i] -= main
 
     return keypoints
 
@@ -75,17 +70,26 @@ def process_video(video):
 
         result = pose_extractor(frame)
 
-        keypoints.append(result.keypoints)
+        if result is None:
+            return
 
-    cap.release()
+        keypoints.append(result)
 
-    output = raw_dir / f"{video.stem}.npz"
+    processed_dir = Path("data/processed")
+    processed_dir.mkdir(parents=True, exist_ok=True)
+
+    output = processed_dir / f"{video.stem}.npz"
+
+    if output.exists():
+        return
 
     fps = cap.get(cv2.CAP_PROP_FPS)
 
     total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 
-    if total_frames != len(keypoints) and len(keypoints) != len(annotations):
+    cap.release()
+
+    if total_frames != len(keypoints) or len(keypoints) != len(annotations):
         print(f"Количество кадров в {video.name} не совпадает с разметкой")
         return
 
@@ -95,14 +99,6 @@ def process_video(video):
         labels=annotations,
         fps=fps
     )
-
-    processed_dir = Path("data/processed")
-    processed_dir.mkdir(parents=True, exist_ok=True)
-
-    output = processed_dir / f"{video.stem}.npz"
-
-    if output.exists():
-        return
 
 if __name__ == "__main__":
     raw_dir = Path("data/raw")
