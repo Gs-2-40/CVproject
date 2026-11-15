@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 from pathlib import Path
 import numpy as np
+import torch
 
 def resample_keypoints(keypoints, target_frames=30):
     n_frames, n_joints, n_features = keypoints.shape
@@ -45,7 +46,7 @@ class MyDataset(Dataset):
         self.stride = stride
         self.window_frames = window_frames
         processed_dir = Path("data/processed")
-        self.window_counts = []
+        self.window_sizes = []
         self.offsets = []
         self.files = sorted(processed_dir.glob("*.npz"))
         for npz in self.files:
@@ -58,8 +59,8 @@ class MyDataset(Dataset):
                 (n_frames - window_size) // self.stride + 1
             )
 
-            self.window_counts.append(count)
-            self.offsets = np.cumsum([0] + self.window_counts)
+            self.window_sizes.append(count)
+        self.offsets = np.cumsum([0] + self.window_sizes)
     def __len__(self):
         return int(self.offsets[-1])
 
@@ -79,5 +80,27 @@ class MyDataset(Dataset):
             X = resample_keypoints(X, target_frames=self.window_frames)
             X = np.nan_to_num(X, nan=0.0)
             y = data["labels"][end_frame - 1, 0]
+        X = torch.from_numpy(X.astype(np.float32))
+        y = torch.tensor(
+            {"no_fall": 0, "fall": 1}[y],
+            dtype=torch.long
+        )
 
-MyDataset(30)
+        return X, y
+
+if __name__ == "__main__":
+    dataset = MyDataset(
+        stride=5,
+        window_frames=30,
+        window_seconds=3
+    )
+
+    print("Всего окон:", len(dataset))
+    print("Окон по видео:", dataset.window_sizes)
+    print("Смещения:", dataset.offsets)
+
+    X, y = dataset[0]
+
+    print("X:", X.shape, X.dtype)
+    print("y:", y)
+    print("NaN:", torch.isnan(X).sum().item())
