@@ -72,7 +72,7 @@ def pose_extractor(frame):
 
 def process_xml(xml):
     if not xml.is_file():
-        print(f"Нет разметки для {video.name}")
+        print(f"Нет разметки для {xml.name}")
         return
 
     tree = ET.parse(xml)
