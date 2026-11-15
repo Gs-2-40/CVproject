@@ -2,7 +2,59 @@ from torch.utils.data import Dataset
 from pathlib import Path
 import numpy as np
 import torch
+from itertools import combinations
+from torch.utils.data import Subset
 
+def choose_val_videos(counts, val_ratio=0.2):
+    n = len(counts)
+
+    if n < 2:
+        raise ValueError("Для разделения нужны минимум два видео")
+
+    target = sum(counts) * val_ratio
+    best_error = float("inf")
+    best = None
+
+    for k in range(1, n):
+        for combination in combinations(range(n), k):
+            current = sum(counts[i] for i in combination)
+            error = abs(current - target)
+
+            if error < best_error:
+                best_error = error
+                best = combination
+
+    return set(best)
+def split_dataset(dataset, val_ratio=0.2):
+    if not 0 < val_ratio < 1:
+        raise ValueError("val_ratio должен быть между 0 и 1")
+
+    counts = dataset.window_counts
+
+    if len(counts) > 18:
+        raise ValueError("Слишком много видео для полного перебора")
+
+    val_videos = choose_val_videos(counts, val_ratio)
+
+    train_indices = []
+    val_indices = []
+
+    for video_idx in range(len(counts)):
+        start = int(dataset.offsets[video_idx])
+        end = int(dataset.offsets[video_idx + 1])
+
+        if video_idx in val_videos:
+            val_indices.extend(range(start, end))
+        else:
+            train_indices.extend(range(start, end))
+
+    if not train_indices or not val_indices:
+        raise ValueError("Обучающая или валидационная выборка пуста")
+
+    return (
+        Subset(dataset, train_indices),
+        Subset(dataset, val_indices)
+    )
 def resample_keypoints(keypoints, target_frames=30):
     n_frames, n_joints, n_features = keypoints.shape
 
@@ -47,6 +99,7 @@ class MyDataset(Dataset):
         self.window_frames = window_frames
         processed_dir = Path("data/processed")
         self.window_sizes = []
+        self.window_counts = []
         self.offsets = []
         self.files = sorted(processed_dir.glob("*.npz"))
         for npz in self.files:
@@ -59,8 +112,9 @@ class MyDataset(Dataset):
                 (n_frames - window_size) // self.stride + 1
             )
 
-            self.window_sizes.append(count)
-        self.offsets = np.cumsum([0] + self.window_sizes)
+            self.window_sizes.append(window_size)
+            self.window_counts.append(count)
+        self.offsets = np.cumsum([0] + self.window_counts)
     def __len__(self):
         return int(self.offsets[-1])
 
@@ -104,3 +158,12 @@ if __name__ == "__main__":
     print("X:", X.shape, X.dtype)
     print("y:", y)
     print("NaN:", torch.isnan(X).sum().item())
+
+    train_dataset, val_dataset = split_dataset(
+        dataset,
+        val_ratio=0.2
+    )
+
+    print("Всего окон:", len(dataset))
+    print("Обучение:", len(train_dataset))
+    print("Валидация:", len(val_dataset))
