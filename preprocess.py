@@ -30,13 +30,24 @@ def interpolate_keypoints(keypoints):
                 a = keypoints[left, joint, coordinate]
                 b = keypoints[right, joint, coordinate]
 
+                alpha = (
+                    np.arange(left + 1, right) - left
+                ) / (right - left)
+
                 keypoints[left + 1:right, joint, coordinate] = (
-                    a + 0.5 * (b - a)
+                    a + alpha * (b - a)
                 )
 
             keypoints[left + 1:right, joint, 2] = 0.0
 
     return keypoints
+
+def show(results):
+    annotated_frame = results[0].plot()
+
+    cv2.imshow("YOLO Pose", annotated_frame)
+    cv2.waitKey(100)
+
 
 def pose_extractor(frame):
     results = model.predict(
@@ -45,10 +56,7 @@ def pose_extractor(frame):
             conf=0.15
             )
 
-    annotated_frame = results[0].plot()
-
-    cv2.imshow("YOLO Pose", annotated_frame)
-    cv2.waitKey(100)
+    show(results)
 
     result = results[0]
 
@@ -83,14 +91,6 @@ def process_xml(xml):
             return
         annotations[form_id] = labels
     return annotations
-def normalize(keypoints):
-    main = [keypoints[0][1]] * len(keypoints[0])
-
-    for i in range(len(keypoints)):
-        keypoints[i] -= main
-
-    return keypoints
-
 def process_video(video):
     print(video.name)
 
@@ -153,8 +153,8 @@ def process_video(video):
 
     np.savez_compressed(
         output,
-        keypoints=normalize(keypoints_interpolated),
-        labels=annotations,
+        keypoints=keypoints_interpolated,
+        labels = [annotations[i] for i in range(len(keypoints))],
         fps=fps
     )
     print(f"Видео {video.name} обработано")
