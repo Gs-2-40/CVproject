@@ -56,7 +56,7 @@ def pose_extractor(frame):
             conf=0.15
             )
 
-    show(results)
+    # show(results)
 
     result = results[0]
 
