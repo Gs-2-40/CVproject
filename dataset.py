@@ -4,27 +4,99 @@ import numpy as np
 import torch
 from itertools import combinations
 from torch.utils.data import Subset
+def normalize_keypoints(X, min_conf=0.3):
+    X = X.copy()
 
+    coords = X[:, :, :2]
+    confidence = X[:, :, 2]
+
+    valid = (
+        np.isfinite(coords).all(axis=2)
+        & (confidence > min_conf)
+    )
+
+    # Предпочитаем последний кадр.
+    # Если он ненадёжен — ищем предыдущий.
+    candidates = np.where(valid.sum(axis=1) >= 5)[0]
+
+    if len(candidates) == 0:
+        return np.nan_to_num(X, nan=0.0)
+
+    reference = candidates[-1]
+    points = coords[reference, valid[reference]]
+
+    center = points.mean(axis=0)
+
+    extent = points.max(axis=0) - points.min(axis=0)
+    scale = max(float(extent.max()), 1.0)
+
+    X[:, :, :2] = (coords - center) / scale
+
+    return np.nan_to_num(X, nan=0.0)
 def choose_val_videos(counts, val_ratio=0.2):
-    n = len(counts)
+    counts = np.asarray(counts, dtype=np.int64)
 
-    if n < 2:
-        raise ValueError("Для разделения нужны минимум два видео")
+    available = np.flatnonzero(counts > 0)
+    if len(available) < 2:
+        raise ValueError("Нужно минимум два видео с окнами")
 
-    target = sum(counts) * val_ratio
-    best_error = float("inf")
-    best = None
+    target = counts.sum() * val_ratio
 
-    for k in range(1, n):
-        for combination in combinations(range(n), k):
-            current = sum(counts[i] for i in combination)
-            error = abs(current - target)
+    if len(available) <= 18:
+        best = min(
+            (
+                combination
+                for k in range(1, len(available))
+                for combination in combinations(available, k)
+            ),
+            key=lambda c: abs(counts[list(c)].sum() - target)
+        )
+        return set(best)
 
-            if error < best_error:
-                best_error = error
-                best = combination
+    # Быстрый приближённый алгоритм
+    order = sorted(available, key=lambda i: counts[i])
+    selected = set()
+    current = 0
 
-    return set(best)
+    for i in order:
+        if len(selected) >= len(available) - 1:
+            break
+
+        candidate = current + counts[i]
+        if abs(candidate - target) < abs(current - target):
+            selected.add(int(i))
+            current = candidate
+
+    if not selected:
+        selected.add(int(order[0]))
+
+    # Улучшение заменой одного видео
+    improved = True
+    while improved:
+        improved = False
+        best_error = abs(current - target)
+        best_swap = None
+
+        for old in selected:
+            for new in available:
+                new = int(new)
+                if new in selected:
+                    continue
+
+                candidate = current - counts[old] + counts[new]
+                error = abs(candidate - target)
+
+                if error < best_error:
+                    best_error = error
+                    best_swap = (old, new, candidate)
+
+        if best_swap is not None:
+            old, new, current = best_swap
+            selected.remove(old)
+            selected.add(new)
+            improved = True
+
+    return selected
 def split_dataset(dataset, val_ratio=0.2):
     if not 0 < val_ratio < 1:
         raise ValueError("val_ratio должен быть между 0 и 1")
@@ -132,7 +204,7 @@ class MyDataset(Dataset):
 
             X = data["keypoints"][start_frame:end_frame]
             X = resample_keypoints(X, target_frames=self.window_frames)
-            X = np.nan_to_num(X, nan=0.0)
+            X = normalize_keypoints(X)
             y = data["labels"][end_frame - 1, 0]
         X = torch.from_numpy(X.astype(np.float32))
         y = torch.tensor(
@@ -150,7 +222,8 @@ if __name__ == "__main__":
     )
 
     print("Всего окон:", len(dataset))
-    print("Окон по видео:", dataset.window_sizes)
+    print("Окон по видео:", dataset.window_counts)
+    print("Размеры окон:", dataset.window_sizes)
     print("Смещения:", dataset.offsets)
 
     X, y = dataset[0]
@@ -167,3 +240,16 @@ if __name__ == "__main__":
     print("Всего окон:", len(dataset))
     print("Обучение:", len(train_dataset))
     print("Валидация:", len(val_dataset))
+
+    X = np.zeros((2, 17, 3), dtype=np.float32)
+
+    X[0, :, 0] = np.arange(17)
+    X[0, :, 1] = np.arange(17) * 2
+    X[1, :, :2] = X[0, :, :2] + [10, 20]
+    X[:, :, 2] = 1.0
+
+    Y = normalize_keypoints(X)
+
+    delta = Y[1, :, :2] - Y[0, :, :2]
+
+    print(delta.mean(axis=0))
