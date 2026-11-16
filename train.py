@@ -103,6 +103,8 @@ def main():
         )
 
     # 7. Сохраняем веса
+    from pathlib import Path
+    Path("models").mkdir(exist_ok=True)
     torch.save(model.state_dict(), "models/fall_tcn.pt")
 
 
