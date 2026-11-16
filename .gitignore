@@ -71,18 +71,3 @@ temp/
 Thumbs.db
 Desktop.ini
 
-# Generated computer vision / ML outputs
-runs/
-outputs/
-checkpoints/
-wandb/
-mlruns/
-lightning_logs/
-*.pt
-*.pth
-*.ckpt
-*.onnx
-*.tflite
-*.h5
-*.hdf5
-# Source datasets in data/ are intentionally tracked.
